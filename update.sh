@@ -22,7 +22,7 @@ BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 BEFORE="$(git rev-parse HEAD)"
 
 echo "Updating claude-notifier ($BRANCH)..."
-git pull --rebase --autostash
+git pull --rebase --autostash --quiet
 
 AFTER="$(git rev-parse HEAD)"
 chmod +x notify.sh install.sh uninstall.sh update.sh 2>/dev/null || true
