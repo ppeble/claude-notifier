@@ -29,14 +29,23 @@ you move or re-clone the directory, run `./install.sh` again to re-point it.)
 ## How it works
 
 Claude Code fires [hooks](https://docs.claude.com/en/docs/claude-code/hooks) at
-key moments and passes event JSON on stdin. `notify.sh` reads that JSON, builds a
-message, auto-detects a notification backend, and sends the alert.
+key moments and passes event JSON on stdin. The installer wires each hook to
+`notify.sh` with an event key, so every event gets its own message (and, on
+macOS, its own system sound). `notify.sh` reads the JSON for session context,
+then sends the alert through an auto-detected backend.
 
-| Hook event    | When it fires                              | Urgency  |
-|---------------|--------------------------------------------|----------|
-| `Notification`| Claude needs permission or is idle waiting | critical |
-| `Stop`        | Claude finishes responding                 | low      |
-| `SubagentStop`| A spawned subagent finishes                | low      |
+| Hook event / matcher                | Key          | Message                          | Urgency  | Sound |
+|--------------------------------------|--------------|----------------------------------|----------|-------|
+| `Notification` / `permission_prompt` | `permission` | 🔐 Permission needed to continue | critical | Funk  |
+| `Notification` / `elicitation_dialog`| `elicitation`| ✏️ Waiting for your input         | critical | Funk  |
+| `PreToolUse` / `AskUserQuestion`     | `question`   | ❓ Claude has a question for you  | critical | Funk  |
+| `Stop`                               | `stop`       | ✅ Task completed successfully    | low      | Glass |
+| `SubagentStop`                       | `subagent`   | Subagent finished                | low      | Glass |
+
+The notification title carries session context (`Claude Code · project ·
+session-id`) so several concurrent sessions are tellable apart. The macOS
+system sound applies to the `osascript` and `terminal-notifier` backends;
+set `CLAUDE_NOTIFIER_SOUND` to a file to override it on any platform.
 
 ## Supported backends
 
@@ -133,24 +142,33 @@ or inline in the hook command):
 | `CLAUDE_NOTIFIER_BACKEND` | Force a backend instead of auto-detecting            |
 | `CLAUDE_NOTIFIER_APPNAME` | App name shown by the backend (default `Claude Code`)|
 | `CLAUDE_NOTIFIER_ICON`    | Icon name or path (default `dialog-information`)      |
-| `CLAUDE_NOTIFIER_SOUND`   | Sound file to play (needs `paplay`/`aplay`/`afplay`) |
-| `CLAUDE_NOTIFIER_EVENTS`  | Comma list of events to allow, e.g. `Notification`   |
+| `CLAUDE_NOTIFIER_SOUND`   | Sound file to play; overrides the per-event macOS sound |
+| `CLAUDE_NOTIFIER_EVENTS`  | Comma list of events to allow, e.g. `permission,question` |
+
+`CLAUDE_NOTIFIER_EVENTS` accepts the event keys (`stop`, `permission`,
+`elicitation`, `question`, `subagent`) and/or the hook names (`Stop`,
+`Notification`, `SubagentStop`); anything not listed is silenced.
 
 ## Manual hook setup
 
-If you'd rather wire it up yourself, add this to `settings.json`:
+If you'd rather wire it up yourself, add this to `settings.json`. Each hook
+passes `notify.sh` the matching event key:
 
 ```json
 {
   "hooks": {
     "Notification": [
-      { "hooks": [ { "type": "command", "command": "/abs/path/to/notify.sh" } ] }
+      { "matcher": "permission_prompt",  "hooks": [ { "type": "command", "command": "/abs/path/to/notify.sh permission" } ] },
+      { "matcher": "elicitation_dialog", "hooks": [ { "type": "command", "command": "/abs/path/to/notify.sh elicitation" } ] }
+    ],
+    "PreToolUse": [
+      { "matcher": "AskUserQuestion", "hooks": [ { "type": "command", "command": "/abs/path/to/notify.sh question" } ] }
     ],
     "Stop": [
-      { "hooks": [ { "type": "command", "command": "/abs/path/to/notify.sh" } ] }
+      { "hooks": [ { "type": "command", "command": "/abs/path/to/notify.sh stop" } ] }
     ],
     "SubagentStop": [
-      { "hooks": [ { "type": "command", "command": "/abs/path/to/notify.sh" } ] }
+      { "hooks": [ { "type": "command", "command": "/abs/path/to/notify.sh subagent" } ] }
     ]
   }
 }

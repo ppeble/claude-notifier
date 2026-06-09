@@ -39,11 +39,13 @@ if [ ! -f "$SETTINGS" ]; then
   exit 0
 fi
 
-# Remove any hook group that runs our command; drop now-empty event arrays.
+# Remove any hook group that runs our script (with or without an event key);
+# drop now-empty event arrays.
 UPDATED="$(jq --arg cmd "$NOTIFY" '
   if .hooks then
     .hooks |= ( to_entries
-      | map(.value |= map(select((.hooks // []) | any(.command == $cmd) | not)))
+      | map(.value |= map(select((.hooks // [])
+          | any(.command == $cmd or (.command | startswith($cmd + " "))) | not)))
       | map(select((.value | length) > 0))
       | from_entries )
   else . end

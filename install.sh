@@ -90,23 +90,36 @@ if ! jq empty "$SETTINGS" >/dev/null 2>&1; then
   exit 1
 fi
 
-# Build the list of events to install.
-EVENTS=(Notification)
-[ "$WANT_STOP" -eq 1 ] && EVENTS+=(Stop)
-[ "$WANT_SUBAGENT" -eq 1 ] && EVENTS+=(SubagentStop)
-EVENTS_JSON="$(printf '%s\n' "${EVENTS[@]}" | jq -R . | jq -s .)"
+# Each event is wired with its own key so notify.sh can give it distinct copy
+# and sound. Notification splits into permission/elicitation by matcher, and
+# AskUserQuestion rides PreToolUse.
+TRIPLES="$(jq -n --arg n "$NOTIFY" '
+  [ { event: "Notification", matcher: "permission_prompt",  cmd: ($n + " permission") },
+    { event: "Notification", matcher: "elicitation_dialog", cmd: ($n + " elicitation") },
+    { event: "PreToolUse",   matcher: "AskUserQuestion",    cmd: ($n + " question") },
+    { event: "Stop",         matcher: null,                 cmd: ($n + " stop") },
+    { event: "SubagentStop", matcher: null,                 cmd: ($n + " subagent") } ]')"
 
-# Merge: for each requested event, drop any existing group that already runs
-# our command (idempotent), then append a fresh group.
+[ "$WANT_STOP" -eq 1 ] || TRIPLES="$(printf '%s' "$TRIPLES" | jq 'map(select(.event != "Stop"))')"
+[ "$WANT_SUBAGENT" -eq 1 ] || TRIPLES="$(printf '%s' "$TRIPLES" | jq 'map(select(.event != "SubagentStop"))')"
+
+# Merge: first drop any existing group that runs our script (with or without a
+# key, so old installs migrate cleanly), once per touched event, then append a
+# fresh group per matcher. Idempotent.
 UPDATED="$(jq \
-  --arg cmd "$NOTIFY" \
-  --argjson events "$EVENTS_JSON" '
-  def ensure(ev):
-    .hooks[ev] = (((.hooks[ev] // [])
-      | map(select((.hooks // []) | any(.command == $cmd) | not)))
-      + [{ hooks: [ { type: "command", command: $cmd } ] }]);
+  --arg notify "$NOTIFY" \
+  --argjson triples "$TRIPLES" '
+  def clean(ev):
+    (.hooks[ev] // [])
+      | map(select((.hooks // [])
+          | any(.command == $notify or (.command | startswith($notify + " "))) | not));
+  def group(m; cmd):
+    (if m == null then { hooks: [ { type: "command", command: cmd } ] }
+     else { matcher: m, hooks: [ { type: "command", command: cmd } ] } end);
   .hooks = (.hooks // {})
-  | reduce $events[] as $e (.; ensure($e))
+  | reduce ($triples | map(.event) | unique)[] as $ev (.; .hooks[$ev] = clean($ev))
+  | reduce $triples[] as $t (.;
+      .hooks[$t.event] = ((.hooks[$t.event] // []) + [group($t.matcher; $t.cmd)]))
 ' "$SETTINGS")"
 
 if [ "$DRY_RUN" -eq 1 ]; then
@@ -119,8 +132,10 @@ cp "$SETTINGS" "$SETTINGS.bak.$(date +%Y%m%d%H%M%S)"
 printf '%s\n' "$UPDATED" > "$SETTINGS"
 
 echo "Installed claude-notifier hooks into $SETTINGS"
-echo "  Events: ${EVENTS[*]}"
-echo "  Command: $NOTIFY"
+printf '%s' "$TRIPLES" | jq -r '.[]
+  | "  - " + .event
+    + (if .matcher then " [" + .matcher + "]" else "" end)
+    + " -> " + .cmd'
 echo "  Backup:  $SETTINGS.bak.*"
 echo
 echo "Test it now:  $NOTIFY --test"
