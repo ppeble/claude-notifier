@@ -99,18 +99,29 @@ Restart any running Claude Code sessions to pick up the new hooks.
 
 ## Update
 
-Pull the latest version with one command:
+Updating is version-aware. With no arguments it moves you to the latest released
+version; you can also pin a specific version or follow the bleeding edge:
 
 ```sh
-./update.sh
+./update.sh             # latest released version (newest vX.Y.Z tag)
+./update.sh 0.2.0       # a specific version (0.2.0 or v0.2.0 both work)
+./update.sh --edge      # latest commit on main (may be unreleased)
+./update.sh --list      # show available released versions
 ```
 
-It fetches the newest commits, rebases any local changes on top (auto-stashing
-uncommitted work), and refreshes the executable bits. Since the hooks reference
-`notify.sh` by absolute path, **you don't need to reinstall** after updating
-unless you want to change which events are wired (then re-run `./install.sh`).
+It auto-stashes any local edits, refreshes the executable bits, and prints what
+changed. Since the hooks reference `notify.sh` by absolute path, **you don't need
+to reinstall** after updating unless you want to change which events are wired
+(then re-run `./install.sh`).
 
-Prefer doing it by hand? `git pull --rebase` from the repo does the same thing.
+## Versioning
+
+This project uses [Semantic Versioning](https://semver.org/). Each release is a
+git tag `vX.Y.Z`, mirrored by the [`VERSION`](VERSION) file, with changes recorded
+in [`CHANGELOG.md`](CHANGELOG.md). `update.sh` resolves updates against these tags,
+so "the latest version" always means the newest tagged release, not whatever
+happens to be on `main`. See [CONTRIBUTING.md](CONTRIBUTING.md) for the release
+process.
 
 ## Configuration
 
