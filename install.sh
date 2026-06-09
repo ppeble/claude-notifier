@@ -40,7 +40,11 @@ done
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "Error: jq is required to safely merge settings.json." >&2
-  echo "Install it (e.g. 'sudo apt install jq') and re-run." >&2
+  if [ "$(uname -s)" = "Darwin" ]; then
+    echo "Install it (e.g. 'brew install jq') and re-run." >&2
+  else
+    echo "Install it (e.g. 'sudo apt install jq') and re-run." >&2
+  fi
   exit 1
 fi
 

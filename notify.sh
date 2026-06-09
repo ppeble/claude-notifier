@@ -143,9 +143,9 @@ send() {
       dunstify -a "$APPNAME" -u "$URGENCY" -i "$ICON" -r 7373 -- "$TITLE" "$BODY"
       ;;
     terminal-notifier)
-      terminal-notifier -title "$TITLE" -message "$BODY" \
-        -group claude-notifier -sender com.anthropic.claude 2>/dev/null \
-        || terminal-notifier -title "$TITLE" -message "$BODY" -group claude-notifier
+      # -group lets a later notification replace an earlier one. No -sender:
+      # a non-installed bundle id can make terminal-notifier silently no-op.
+      terminal-notifier -title "$TITLE" -message "$BODY" -group claude-notifier
       ;;
     osascript)
       # Escape double quotes and backslashes for AppleScript string literals.

@@ -30,6 +30,18 @@ Auto-detected in this order (first match wins):
 
 Force one with `CLAUDE_NOTIFIER_BACKEND`.
 
+### macOS notes
+
+- `osascript` is built into macOS, so notifications work with **no extra
+  install**. The installer still needs `jq` (`brew install jq`).
+- For a nicer experience (custom app icon, notification grouping/replacement),
+  install [`terminal-notifier`](https://github.com/julienXX/terminal-notifier)
+  (`brew install terminal-notifier`); it's auto-detected and preferred.
+- With the `osascript` backend, macOS attributes the notification to the calling
+  app (e.g. your terminal or "Script Editor"). Make sure that app is allowed to
+  send notifications in **System Settings → Notifications**, and that Do Not
+  Disturb / Focus isn't suppressing it.
+
 ## Install
 
 ```sh
