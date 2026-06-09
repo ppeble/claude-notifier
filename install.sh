@@ -3,15 +3,14 @@
 # Wire claude-notifier into Claude Code's settings.json hooks.
 #
 # Usage:
-#   ./install.sh [--user|--project] [--no-stop] [--no-subagent] [--dry-run]
+#   ./install.sh [--user|--project] [--no-stop] [--dry-run]
 #
 #   With no scope flag, prompts interactively (user vs project); falls back to
 #   --user when there is no terminal to prompt at.
 #
 #   --user      Install into ~/.claude/settings.json
 #   --project   Install into ./.claude/settings.json (current repo)
-#   --no-stop       Skip the Stop hook (no "finished" notifications)
-#   --no-subagent   Skip the SubagentStop hook
+#   --no-stop   Skip the Stop hook (no "finished" notifications)
 #   --dry-run   Print the resulting settings without writing
 
 set -euo pipefail
@@ -22,7 +21,6 @@ NOTIFY="$SCRIPT_DIR/notify.sh"
 SCOPE="user"
 SCOPE_SET=0
 WANT_STOP=1
-WANT_SUBAGENT=1
 DRY_RUN=0
 
 while [ $# -gt 0 ]; do
@@ -30,9 +28,8 @@ while [ $# -gt 0 ]; do
     --user) SCOPE="user"; SCOPE_SET=1 ;;
     --project) SCOPE="project"; SCOPE_SET=1 ;;
     --no-stop) WANT_STOP=0 ;;
-    --no-subagent) WANT_SUBAGENT=0 ;;
     --dry-run) DRY_RUN=1 ;;
-    -h|--help) sed -n '2,15p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,14p' "$0"; exit 0 ;;
     *) echo "Unknown option: $1" >&2; exit 2 ;;
   esac
   shift
@@ -97,15 +94,15 @@ TRIPLES="$(jq -n --arg n "$NOTIFY" '
   [ { event: "Notification", matcher: "permission_prompt",  cmd: ($n + " permission") },
     { event: "Notification", matcher: "elicitation_dialog", cmd: ($n + " elicitation") },
     { event: "PreToolUse",   matcher: "AskUserQuestion",    cmd: ($n + " question") },
-    { event: "Stop",         matcher: null,                 cmd: ($n + " stop") },
-    { event: "SubagentStop", matcher: null,                 cmd: ($n + " subagent") } ]')"
+    { event: "Stop",         matcher: null,                 cmd: ($n + " stop") } ]')"
 
 [ "$WANT_STOP" -eq 1 ] || TRIPLES="$(printf '%s' "$TRIPLES" | jq 'map(select(.event != "Stop"))')"
-[ "$WANT_SUBAGENT" -eq 1 ] || TRIPLES="$(printf '%s' "$TRIPLES" | jq 'map(select(.event != "SubagentStop"))')"
 
 # Merge: first drop any existing group that runs our script (with or without a
 # key, so old installs migrate cleanly), once per touched event, then append a
-# fresh group per matcher. Idempotent.
+# fresh group per matcher. SubagentStop is cleaned but never re-added, so older
+# installs that wired it shed the duplicate "subagent finished" ping on re-run.
+# Idempotent.
 UPDATED="$(jq \
   --arg notify "$NOTIFY" \
   --argjson triples "$TRIPLES" '
@@ -117,9 +114,10 @@ UPDATED="$(jq \
     (if m == null then { hooks: [ { type: "command", command: cmd } ] }
      else { matcher: m, hooks: [ { type: "command", command: cmd } ] } end);
   .hooks = (.hooks // {})
-  | reduce ($triples | map(.event) | unique)[] as $ev (.; .hooks[$ev] = clean($ev))
+  | reduce (($triples | map(.event)) + ["SubagentStop"] | unique)[] as $ev (.; .hooks[$ev] = clean($ev))
   | reduce $triples[] as $t (.;
       .hooks[$t.event] = ((.hooks[$t.event] // []) + [group($t.matcher; $t.cmd)]))
+  | .hooks |= with_entries(select(.value | length > 0))
 ' "$SETTINGS")"
 
 if [ "$DRY_RUN" -eq 1 ]; then
