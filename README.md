@@ -159,3 +159,5 @@ If you'd rather wire it up yourself, add this to `settings.json`:
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+<!-- test: version gate -->
