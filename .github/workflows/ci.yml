@@ -67,3 +67,49 @@ jobs:
           fi
 
           echo "OK: VERSION $base_ver -> $head_ver, with a CHANGELOG entry."
+
+  tag:
+    name: Tag release
+    needs: lint
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Tag vX.Y.Z when VERSION changed
+        run: |
+          ver="$(tr -d '[:space:]' < VERSION)"
+          [ -n "$ver" ] || { echo "::error::VERSION file is empty or missing."; exit 1; }
+
+          # Previous commit's VERSION. HEAD~1 is the prior main tip for both
+          # squash and merge commits. Empty on the very first commit.
+          prev="$(git show HEAD~1:VERSION 2>/dev/null | tr -d '[:space:]')" || prev=""
+
+          if [ "$prev" = "$ver" ]; then
+            echo "VERSION unchanged ($ver); nothing to tag."
+            exit 0
+          fi
+
+          if [ -n "$prev" ]; then
+            highest="$(printf '%s\n%s\n' "$prev" "$ver" | sort -V | tail -n1)"
+            if [ "$highest" != "$ver" ]; then
+              echo "::warning::VERSION went backwards ($prev -> $ver); not tagging."
+              exit 0
+            fi
+          fi
+
+          tag="v$ver"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "Tag $tag already exists; nothing to do."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$tag" -m "$tag"
+          git push origin "$tag"
+          echo "Created and pushed $tag."

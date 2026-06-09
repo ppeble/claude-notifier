@@ -68,13 +68,22 @@ So each PR includes, alongside its code:
 
 ### Tagging a release
 
-`VERSION` always reflects the current code, but `update.sh` offers users the
-latest released **tag**. To publish the current `VERSION` as a release that
-`./update.sh` will hand out:
+Tagging is automatic. When a PR merges to `main` and the `VERSION` file changed
+from the previous commit, the CI `tag` job creates and pushes the matching
+annotated `vX.Y.Z` tag. Because `update.sh` hands users the latest released
+**tag**, merging a version bump is all it takes to publish a release; no manual
+tagging step is needed.
+
+The job is a no-op when `VERSION` is unchanged, when the tag already exists, or
+if `VERSION` somehow moved backwards, so re-runs and edge cases are safe.
+
+If you ever need to tag a commit by hand (e.g. backfilling history), the matching
+commands are:
 
 ```sh
 git tag -a "v$(tr -d '[:space:]' < VERSION)" -m "v$(tr -d '[:space:]' < VERSION)"
 git push origin "v$(tr -d '[:space:]' < VERSION)"
 ```
 
-A CI check guards that any pushed `vX.Y.Z` tag matches the `VERSION` file.
+A separate CI check guards that any manually pushed `vX.Y.Z` tag matches the
+`VERSION` file.
