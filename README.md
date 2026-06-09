@@ -8,6 +8,24 @@ don't have to babysit the terminal.
 No runtime dependencies beyond a notification backend you almost certainly
 already have. `jq` is used by the installer to edit `settings.json` safely.
 
+## Quick start
+
+Clone the repo somewhere permanent, install once, and update whenever you like.
+Run every command from the cloned directory:
+
+```sh
+git clone https://github.com/ppeble/claude-notifier.git
+cd claude-notifier
+
+./install.sh        # install: wire the hooks into Claude Code
+./update.sh         # update:  pull the latest, no reinstall needed
+```
+
+The installer points Claude Code at `notify.sh` using this directory's absolute
+path, so **keep the clone where it is** and run `./update.sh` from inside it to
+upgrade. The path never changes, so updates take effect with no reinstall. (If
+you move or re-clone the directory, run `./install.sh` again to re-point it.)
+
 ## How it works
 
 Claude Code fires [hooks](https://docs.claude.com/en/docs/claude-code/hooks) at
@@ -45,8 +63,6 @@ Force one with `CLAUDE_NOTIFIER_BACKEND`.
 ## Install
 
 ```sh
-git clone <this-repo> claude-notifier
-cd claude-notifier
 ./install.sh            # asks: user-wide or this project only?
 ./notify.sh --test      # verify a notification appears
 ```
