@@ -5,6 +5,36 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-06-09
+
+### Added
+- Per-event notifications with distinct copy and sound, dispatched by an
+  event-key argument the installer wires onto each hook:
+  - `Stop` -> `stop`: "✅ Task completed successfully" (Glass)
+  - `Notification` / `permission_prompt` -> `permission`: "🔐 Permission needed
+    to continue" (Funk)
+  - `Notification` / `elicitation_dialog` -> `elicitation`: "✏️ Waiting for your
+    input" (Funk)
+  - `PreToolUse` / `AskUserQuestion` -> `question`: "❓ Claude has a question for
+    you" (Funk)
+  - `SubagentStop` -> `subagent`: "Subagent finished" (Glass)
+- Notification titles now carry session context (`project · short-session-id`)
+  so concurrent Claude Code sessions are tellable apart.
+- macOS backends (`osascript`, `terminal-notifier`) play a per-event system
+  sound (Glass for "done", Funk for "needs you"); `CLAUDE_NOTIFIER_SOUND` still
+  overrides with a sound file on any platform.
+
+### Changed
+- `install.sh` now wires five matchers (splitting `Notification` into
+  `permission_prompt` / `elicitation_dialog` and adding `PreToolUse` /
+  `AskUserQuestion`) instead of three coarse events. Re-running it migrates an
+  older install in place.
+- `notify.sh` selects its message from the event-key argument; when called with
+  no argument it falls back to deriving the key from the stdin `hook_event_name`,
+  so legacy wiring keeps working.
+- `CLAUDE_NOTIFIER_EVENTS` accepts the new event keys (`stop`, `permission`,
+  `elicitation`, `question`, `subagent`) as well as the legacy hook names.
+
 ## [0.2.0] - 2026-06-09
 
 ### Added
@@ -43,5 +73,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `notify.sh --test` to send a sample notification.
 - Documentation (`README.md`) and MIT license.
 
+[0.3.0]: https://github.com/ppeble/claude-notifier/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/ppeble/claude-notifier/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/ppeble/claude-notifier/releases/tag/v0.1.0

@@ -2,31 +2,56 @@
 #
 # claude-notifier: send a desktop notification when Claude Code needs you.
 #
-# Invoked by Claude Code hooks (Notification, Stop, SubagentStop). The hook
-# event JSON arrives on stdin. This script parses it, builds a human message,
-# auto-detects an available notification backend, and dispatches the alert.
+# Invoked by Claude Code hooks. The installer wires each hook to this script
+# with an event-key argument so every event gets distinct copy and sound:
 #
-# Run `./notify.sh --test` to send a sample notification without a hook.
+#   Stop                              -> notify.sh stop         ✅ Task completed
+#   Notification / permission_prompt  -> notify.sh permission   🔐 Permission needed
+#   Notification / elicitation_dialog -> notify.sh elicitation  ✏️ Waiting for input
+#   PreToolUse  / AskUserQuestion     -> notify.sh question     ❓ Has a question
+#   SubagentStop                      -> notify.sh subagent     Subagent finished
+#
+# The hook event JSON still arrives on stdin; it is used for session context
+# (project dir + short session id) so concurrent sessions are tellable apart.
+# When called with no event key (e.g. a legacy install), the key is derived
+# from the stdin `hook_event_name` field, so older wiring keeps working.
+#
+# Run `./notify.sh --test [event-key]` to send a sample notification.
 #
 # Environment overrides:
 #   CLAUDE_NOTIFIER_BACKEND   Force a backend (notify-send|dunstify|
 #                             terminal-notifier|osascript|kdialog|zenity|logger)
 #   CLAUDE_NOTIFIER_APPNAME   App name shown by the backend (default "Claude Code")
 #   CLAUDE_NOTIFIER_ICON      Icon name or path for backends that support it
-#   CLAUDE_NOTIFIER_SOUND     Sound file to play (needs paplay/aplay/afplay)
+#   CLAUDE_NOTIFIER_SOUND     Sound file to play (needs paplay/aplay/afplay).
+#                             Overrides the per-event macOS system sound.
 #   CLAUDE_NOTIFIER_EVENTS    Comma list of events to allow (default: all).
-#                             e.g. "Notification" to silence Stop/SubagentStop.
+#                             Accepts event keys (stop,permission,elicitation,
+#                             question,subagent) and/or hook names (Stop,
+#                             Notification,SubagentStop). e.g. "permission,question".
 
 set -uo pipefail
 
 APPNAME="${CLAUDE_NOTIFIER_APPNAME:-Claude Code}"
 ICON="${CLAUDE_NOTIFIER_ICON:-dialog-information}"
 
+#-- Parse the event key / --test -----------------------------------------------
+
+KEY=""
+TEST=0
+if [ "${1:-}" = "--test" ]; then
+  TEST=1
+  KEY="${2:-permission}"
+elif [ -n "${1:-}" ] && [ "${1#-}" = "$1" ]; then
+  # First arg is a bare word: treat it as the event key.
+  KEY="$1"
+fi
+
 #-- Read input -----------------------------------------------------------------
 
 INPUT=""
-if [ "${1:-}" = "--test" ]; then
-  INPUT='{"hook_event_name":"Notification","message":"Claude needs your permission to use Bash","cwd":"'"${PWD}"'"}'
+if [ "$TEST" -eq 1 ]; then
+  INPUT='{"hook_event_name":"Notification","message":"Sample notification","cwd":"'"${PWD}"'","session_id":"test1234abcd"}'
 elif [ ! -t 0 ]; then
   INPUT="$(cat)"
 fi
@@ -59,40 +84,80 @@ MESSAGE="$(field message)"
 CWD="$(field cwd)"
 [ -n "$CWD" ] || CWD="$PWD"
 PROJECT="$(basename "$CWD" 2>/dev/null || echo "$CWD")"
+SESSION_ID="$(field session_id)"
+SHORT_ID=""
+[ -n "$SESSION_ID" ] && SHORT_ID="$(printf '%s' "$SESSION_ID" | cut -c1-8)"
 
-#-- Event gating ---------------------------------------------------------------
+#-- Derive the event key from the hook name when none was passed ---------------
 
-if [ -n "${CLAUDE_NOTIFIER_EVENTS:-}" ] && [ -n "$EVENT" ]; then
-  case ",${CLAUDE_NOTIFIER_EVENTS}," in
-    *",$EVENT,"*) : ;;
-    *) exit 0 ;;
+if [ -z "$KEY" ]; then
+  case "$EVENT" in
+    Stop)         KEY="stop" ;;
+    SubagentStop) KEY="subagent" ;;
+    PreToolUse)   KEY="question" ;;
+    Notification) KEY="notification" ;;
+    *)            KEY="notification" ;;
   esac
 fi
 
-#-- Build title / body / urgency -----------------------------------------------
+#-- Event gating ---------------------------------------------------------------
+# Allow a token that matches either the resolved key or the raw hook name, so
+# both new (key) and legacy (hook-name) CLAUDE_NOTIFIER_EVENTS values work.
 
-case "$EVENT" in
-  Notification)
-    TITLE="Claude needs you · $PROJECT"
+if [ -n "${CLAUDE_NOTIFIER_EVENTS:-}" ]; then
+  allowed=0
+  case ",${CLAUDE_NOTIFIER_EVENTS}," in
+    *",$KEY,"*) allowed=1 ;;
+  esac
+  if [ -n "$EVENT" ]; then
+    case ",${CLAUDE_NOTIFIER_EVENTS}," in
+      *",$EVENT,"*) allowed=1 ;;
+    esac
+  fi
+  [ "$allowed" -eq 1 ] || exit 0
+fi
+
+#-- Build title / body / urgency / sound ---------------------------------------
+# Distinct copy per event mirrors the Glass/Funk split: Glass on the "done"
+# events, Funk on the "needs you" events so they sound different by ear.
+
+SOUND_NAME=""
+case "$KEY" in
+  stop)
+    BODY="✅ Task completed successfully"
+    URGENCY="low"
+    SOUND_NAME="Glass"
+    ;;
+  permission)
+    BODY="🔐 Permission needed to continue"
+    URGENCY="critical"
+    SOUND_NAME="Funk"
+    ;;
+  elicitation)
+    BODY="✏️ Waiting for your input"
+    URGENCY="critical"
+    SOUND_NAME="Funk"
+    ;;
+  question)
+    BODY="❓ Claude has a question for you"
+    URGENCY="critical"
+    SOUND_NAME="Funk"
+    ;;
+  subagent)
+    BODY="${MESSAGE:-Subagent finished}"
+    URGENCY="low"
+    SOUND_NAME="Glass"
+    ;;
+  notification|*)
     BODY="${MESSAGE:-Waiting for your input}"
     URGENCY="critical"
-    ;;
-  Stop)
-    TITLE="Claude finished · $PROJECT"
-    BODY="${MESSAGE:-Task complete}"
-    URGENCY="low"
-    ;;
-  SubagentStop)
-    TITLE="Subagent finished · $PROJECT"
-    BODY="${MESSAGE:-Subagent complete}"
-    URGENCY="low"
-    ;;
-  *)
-    TITLE="$APPNAME · $PROJECT"
-    BODY="${MESSAGE:-${EVENT:-Notification}}"
-    URGENCY="normal"
+    SOUND_NAME="Funk"
     ;;
 esac
+
+# Title carries session context so concurrent sessions are tellable apart.
+TITLE="$APPNAME · $PROJECT"
+[ -n "$SHORT_ID" ] && TITLE="$TITLE · $SHORT_ID"
 
 #-- Backend detection ----------------------------------------------------------
 
@@ -119,6 +184,9 @@ detect_backend() {
 BACKEND="$(detect_backend)"
 
 #-- Sound (optional) -----------------------------------------------------------
+# A configured CLAUDE_NOTIFIER_SOUND file plays via paplay/afplay/aplay on any
+# platform; the per-event macOS system sound is handled inline by the macOS
+# backends below.
 
 play_sound() {
   local snd="${CLAUDE_NOTIFIER_SOUND:-}"
@@ -145,14 +213,22 @@ send() {
     terminal-notifier)
       # -group lets a later notification replace an earlier one. No -sender:
       # a non-installed bundle id can make terminal-notifier silently no-op.
-      terminal-notifier -title "$TITLE" -message "$BODY" -group claude-notifier
+      if [ -n "$SOUND_NAME" ]; then
+        terminal-notifier -title "$TITLE" -message "$BODY" -group claude-notifier -sound "$SOUND_NAME"
+      else
+        terminal-notifier -title "$TITLE" -message "$BODY" -group claude-notifier
+      fi
       ;;
     osascript)
       # Escape double quotes and backslashes for AppleScript string literals.
       local t b
       t="$(printf '%s' "$TITLE" | sed 's/\\/\\\\/g; s/"/\\"/g')"
       b="$(printf '%s' "$BODY"  | sed 's/\\/\\\\/g; s/"/\\"/g')"
-      osascript -e "display notification \"$b\" with title \"$t\""
+      if [ -n "$SOUND_NAME" ]; then
+        osascript -e "display notification \"$b\" with title \"$t\" sound name \"$SOUND_NAME\""
+      else
+        osascript -e "display notification \"$b\" with title \"$t\""
+      fi
       ;;
     kdialog)
       kdialog --title "$TITLE" --passivepopup "$BODY" 10
