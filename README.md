@@ -81,6 +81,21 @@ Restart any running Claude Code sessions to pick up the new hooks.
 ./uninstall.sh --project # remove from ./.claude/settings.json
 ```
 
+## Update
+
+Pull the latest version with one command:
+
+```sh
+./update.sh
+```
+
+It fetches the newest commits, rebases any local changes on top (auto-stashing
+uncommitted work), and refreshes the executable bits. Since the hooks reference
+`notify.sh` by absolute path, **you don't need to reinstall** after updating
+unless you want to change which events are wired (then re-run `./install.sh`).
+
+Prefer doing it by hand? `git pull --rebase` from the repo does the same thing.
+
 ## Configuration
 
 `notify.sh` honors these environment variables (set them in your shell profile,
