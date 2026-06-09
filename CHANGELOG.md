@@ -5,7 +5,17 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0] - 2026-06-09
+
+### Added
+- CI now enforces a version bump on every pull request: `VERSION` must increase
+  (semver) and `CHANGELOG.md` must contain a matching `## [X.Y.Z]` entry. Wired
+  in as a required, strict status check on `main`.
+
+### Changed
+- Versioning model is now continuous: every merged change advances `VERSION` and
+  adds a changelog entry, rather than accumulating under an `Unreleased` heading.
+  `CONTRIBUTING.md` updated accordingly.
 
 ## [0.1.0] - 2026-06-09
 
@@ -33,5 +43,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `notify.sh --test` to send a sample notification.
 - Documentation (`README.md`) and MIT license.
 
-[Unreleased]: https://github.com/ppeble/claude-notifier/compare/v0.1.0...HEAD
+[0.2.0]: https://github.com/ppeble/claude-notifier/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/ppeble/claude-notifier/releases/tag/v0.1.0

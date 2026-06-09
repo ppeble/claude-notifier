@@ -28,3 +28,42 @@ jobs:
           tag="${GITHUB_REF#refs/tags/v}"
           file="$(tr -d '[:space:]' < VERSION)"
           test "$tag" = "$file" || { echo "Tag v$tag != VERSION ($file)"; exit 1; }
+
+  version-bump:
+    name: Version bump
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require a version bump + changelog entry
+        run: |
+          base="${{ github.event.pull_request.base.sha }}"
+          git fetch --quiet origin "$base" || true
+
+          head_ver="$(tr -d '[:space:]' < VERSION)"
+          [ -n "$head_ver" ] || { echo "::error::VERSION file is empty or missing."; exit 1; }
+
+          base_ver="$(git show "$base:VERSION" 2>/dev/null | tr -d '[:space:]')" || base_ver=""
+          [ -n "$base_ver" ] || base_ver="0.0.0"
+
+          if [ "$base_ver" = "$head_ver" ]; then
+            echo "::error::VERSION was not bumped (still $head_ver). Every change must bump VERSION."
+            exit 1
+          fi
+
+          highest="$(printf '%s\n%s\n' "$base_ver" "$head_ver" | sort -V | tail -n1)"
+          if [ "$highest" != "$head_ver" ]; then
+            echo "::error::VERSION went backwards ($base_ver -> $head_ver). It must increase."
+            exit 1
+          fi
+
+          ver_re="$(printf '%s' "$head_ver" | sed 's/\./\\./g')"
+          if ! grep -qE "^##[[:space:]]+\[$ver_re\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no '## [$head_ver]' section. Document the bump."
+            exit 1
+          fi
+
+          echo "OK: VERSION $base_ver -> $head_ver, with a CHANGELOG entry."

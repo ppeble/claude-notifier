@@ -10,11 +10,19 @@ set of shell scripts, so the bar is mostly: keep it portable and keep it simple.
    expansions, no bashisms that break on macOS bash 3.2 (no associative arrays,
    no `mapfile`, no `${var,,}`).
 3. Run the checks locally (see below).
-4. Update `CHANGELOG.md` under `[Unreleased]`.
+4. **Bump the version.** Every change must raise `VERSION` (at least a patch
+   bump) and add a matching `## [X.Y.Z] - YYYY-MM-DD` section to `CHANGELOG.md`.
+   CI enforces this; a PR that does not bump the version (or omits the changelog
+   entry) cannot merge.
 5. Open a pull request against `main`.
 
-`main` is protected: changes land through pull requests, history is kept linear
-(rebase, do not merge-commit), and force-pushes to `main` are blocked.
+`main` is protected: changes land through pull requests, CI must pass (ShellCheck
+plus the version-bump check), history is kept linear (rebase, do not merge-commit),
+and force-pushes to `main` are blocked. Admins may override in emergencies.
+
+Because the version-bump check is strict (your branch must be up to date with
+`main` before merging), if another PR lands first you may need to rebase and pick
+the next version number.
 
 ## Local checks
 
@@ -44,20 +52,29 @@ Keep the title/body/urgency contract identical across backends.
 ## Versioning and releases
 
 This project follows [Semantic Versioning](https://semver.org/) and
-[Keep a Changelog](https://keepachangelog.com/). Versioning is explicit: the
-`VERSION` file and a matching `vX.Y.Z` git tag are the source of truth, and
-`update.sh` resolves updates against those tags.
+[Keep a Changelog](https://keepachangelog.com/). Versioning is explicit and
+continuous: **every merged change advances `VERSION`** and records a matching
+`## [X.Y.Z]` entry in `CHANGELOG.md`. Pick the bump that fits the change:
 
-Cutting a release (maintainers):
+- patch (`0.1.0` -> `0.1.1`) for fixes and docs,
+- minor (`0.1.1` -> `0.2.0`) for new, backward-compatible features,
+- major (`0.2.0` -> `1.0.0`) for breaking changes.
 
-1. Move the `[Unreleased]` entries in `CHANGELOG.md` under a new
-   `[X.Y.Z] - YYYY-MM-DD` heading and update the compare links at the bottom.
-2. Set `VERSION` to `X.Y.Z`.
-3. Commit (`Release vX.Y.Z`), then tag and push:
-   ```sh
-   git tag -a vX.Y.Z -m "vX.Y.Z"
-   git push origin main --follow-tags
-   ```
+So each PR includes, alongside its code:
 
-`update.sh` (no arguments) will then offer this version as the latest release to
-all users.
+1. `VERSION` raised to the new `X.Y.Z`.
+2. A new `## [X.Y.Z] - YYYY-MM-DD` section in `CHANGELOG.md` describing the change
+   (and the compare links at the bottom updated).
+
+### Tagging a release
+
+`VERSION` always reflects the current code, but `update.sh` offers users the
+latest released **tag**. To publish the current `VERSION` as a release that
+`./update.sh` will hand out:
+
+```sh
+git tag -a "v$(tr -d '[:space:]' < VERSION)" -m "v$(tr -d '[:space:]' < VERSION)"
+git push origin "v$(tr -d '[:space:]' < VERSION)"
+```
+
+A CI check guards that any pushed `vX.Y.Z` tag matches the `VERSION` file.
