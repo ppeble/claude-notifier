@@ -2,8 +2,8 @@
 
 Desktop notifications for [Claude Code](https://claude.com/claude-code) on Linux
 (and macOS), using your system's native notification tooling. Get a popup the
-moment Claude needs your input, finishes a task, or a subagent completes, so you
-don't have to babysit the terminal.
+moment Claude needs your input or finishes a task, so you don't have to babysit
+the terminal.
 
 No runtime dependencies beyond a notification backend you almost certainly
 already have. `jq` is used by the installer to edit `settings.json` safely.
@@ -40,7 +40,6 @@ then sends the alert through an auto-detected backend.
 | `Notification` / `elicitation_dialog`| `elicitation`| ✏️ Waiting for your input         | critical | Funk  |
 | `PreToolUse` / `AskUserQuestion`     | `question`   | ❓ Claude has a question for you  | critical | Funk  |
 | `Stop`                               | `stop`       | ✅ Task completed successfully    | low      | Glass |
-| `SubagentStop`                       | `subagent`   | Subagent finished                | low      | Glass |
 
 The notification title carries session context (`Claude Code · project ·
 session-id`) so several concurrent sessions are tellable apart. The macOS
@@ -88,7 +87,6 @@ Installer options:
 ./install.sh --user          # user-wide, no prompt
 ./install.sh --project       # this project's ./.claude/settings.json, no prompt
 ./install.sh --no-stop       # skip "Claude finished" notifications
-./install.sh --no-subagent   # skip subagent notifications
 ./install.sh --dry-run       # preview the merged settings, write nothing
 ```
 
@@ -146,8 +144,8 @@ or inline in the hook command):
 | `CLAUDE_NOTIFIER_EVENTS`  | Comma list of events to allow, e.g. `permission,question` |
 
 `CLAUDE_NOTIFIER_EVENTS` accepts the event keys (`stop`, `permission`,
-`elicitation`, `question`, `subagent`) and/or the hook names (`Stop`,
-`Notification`, `SubagentStop`); anything not listed is silenced.
+`elicitation`, `question`) and/or the hook names (`Stop`, `Notification`);
+anything not listed is silenced.
 
 ## Manual hook setup
 
@@ -166,9 +164,6 @@ passes `notify.sh` the matching event key:
     ],
     "Stop": [
       { "hooks": [ { "type": "command", "command": "/abs/path/to/notify.sh stop" } ] }
-    ],
-    "SubagentStop": [
-      { "hooks": [ { "type": "command", "command": "/abs/path/to/notify.sh subagent" } ] }
     ]
   }
 }

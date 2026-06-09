@@ -9,7 +9,6 @@
 #   Notification / permission_prompt  -> notify.sh permission   🔐 Permission needed
 #   Notification / elicitation_dialog -> notify.sh elicitation  ✏️ Waiting for input
 #   PreToolUse  / AskUserQuestion     -> notify.sh question     ❓ Has a question
-#   SubagentStop                      -> notify.sh subagent     Subagent finished
 #
 # The hook event JSON still arrives on stdin; it is used for session context
 # (project dir + short session id) so concurrent sessions are tellable apart.
@@ -27,8 +26,8 @@
 #                             Overrides the per-event macOS system sound.
 #   CLAUDE_NOTIFIER_EVENTS    Comma list of events to allow (default: all).
 #                             Accepts event keys (stop,permission,elicitation,
-#                             question,subagent) and/or hook names (Stop,
-#                             Notification,SubagentStop). e.g. "permission,question".
+#                             question) and/or hook names (Stop,
+#                             Notification). e.g. "permission,question".
 
 set -uo pipefail
 
@@ -93,12 +92,19 @@ SHORT_ID=""
 if [ -z "$KEY" ]; then
   case "$EVENT" in
     Stop)         KEY="stop" ;;
-    SubagentStop) KEY="subagent" ;;
     PreToolUse)   KEY="question" ;;
     Notification) KEY="notification" ;;
     *)            KEY="notification" ;;
   esac
 fi
+
+# Subagent completion is intentionally silent: it double-pinged alongside the
+# main Stop notification, so the SubagentStop hook was dropped. Stay quiet for
+# any legacy install still wired to call us with it before re-running install.sh.
+case "$KEY" in
+  subagent) exit 0 ;;
+esac
+[ "$EVENT" = "SubagentStop" ] && exit 0
 
 #-- Event gating ---------------------------------------------------------------
 # Allow a token that matches either the resolved key or the raw hook name, so
@@ -142,11 +148,6 @@ case "$KEY" in
     BODY="❓ Claude has a question for you"
     URGENCY="critical"
     SOUND_NAME="Funk"
-    ;;
-  subagent)
-    BODY="${MESSAGE:-Subagent finished}"
-    URGENCY="low"
-    SOUND_NAME="Glass"
     ;;
   notification|*)
     BODY="${MESSAGE:-Waiting for your input}"

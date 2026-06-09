@@ -5,6 +5,17 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-06-09
+
+### Removed
+- The `SubagentStop` hook and its `subagent` notification. When a subagent
+  finished it pinged alongside the main `Stop` notification, producing two
+  alerts for one logical "done" event. Re-running `install.sh` strips the stale
+  `SubagentStop` group from existing settings, and `notify.sh` now exits silently
+  if a legacy install still invokes it with `subagent` / `SubagentStop` before
+  the installer is re-run.
+- The `--no-subagent` installer flag (nothing left to skip).
+
 ## [0.3.0] - 2026-06-09
 
 ### Added
@@ -73,6 +84,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `notify.sh --test` to send a sample notification.
 - Documentation (`README.md`) and MIT license.
 
+[0.4.0]: https://github.com/ppeble/claude-notifier/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/ppeble/claude-notifier/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/ppeble/claude-notifier/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/ppeble/claude-notifier/releases/tag/v0.1.0
