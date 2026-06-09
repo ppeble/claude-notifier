@@ -35,14 +35,21 @@ Force one with `CLAUDE_NOTIFIER_BACKEND`.
 ```sh
 git clone <this-repo> claude-notifier
 cd claude-notifier
-./install.sh            # wires hooks into ~/.claude/settings.json
+./install.sh            # asks: user-wide or this project only?
 ./notify.sh --test      # verify a notification appears
 ```
+
+Run with no scope flag and the installer asks whether to install **user-wide**
+(`~/.claude/settings.json`, all your projects) or **per-project**
+(`./.claude/settings.json`, this directory only). Pass `--user` or `--project`
+to skip the prompt; when there's no terminal (CI, piped install) it defaults to
+`--user`.
 
 Installer options:
 
 ```sh
-./install.sh --project       # install into ./.claude/settings.json instead
+./install.sh --user          # user-wide, no prompt
+./install.sh --project       # this project's ./.claude/settings.json, no prompt
 ./install.sh --no-stop       # skip "Claude finished" notifications
 ./install.sh --no-subagent   # skip subagent notifications
 ./install.sh --dry-run       # preview the merged settings, write nothing

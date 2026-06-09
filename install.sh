@@ -5,7 +5,10 @@
 # Usage:
 #   ./install.sh [--user|--project] [--no-stop] [--no-subagent] [--dry-run]
 #
-#   --user      Install into ~/.claude/settings.json (default)
+#   With no scope flag, prompts interactively (user vs project); falls back to
+#   --user when there is no terminal to prompt at.
+#
+#   --user      Install into ~/.claude/settings.json
 #   --project   Install into ./.claude/settings.json (current repo)
 #   --no-stop       Skip the Stop hook (no "finished" notifications)
 #   --no-subagent   Skip the SubagentStop hook
@@ -17,18 +20,19 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NOTIFY="$SCRIPT_DIR/notify.sh"
 
 SCOPE="user"
+SCOPE_SET=0
 WANT_STOP=1
 WANT_SUBAGENT=1
 DRY_RUN=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --user) SCOPE="user" ;;
-    --project) SCOPE="project" ;;
+    --user) SCOPE="user"; SCOPE_SET=1 ;;
+    --project) SCOPE="project"; SCOPE_SET=1 ;;
     --no-stop) WANT_STOP=0 ;;
     --no-subagent) WANT_SUBAGENT=0 ;;
     --dry-run) DRY_RUN=1 ;;
-    -h|--help) sed -n '2,12p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,15p' "$0"; exit 0 ;;
     *) echo "Unknown option: $1" >&2; exit 2 ;;
   esac
   shift
@@ -45,6 +49,27 @@ if [ ! -f "$NOTIFY" ]; then
   exit 1
 fi
 chmod +x "$NOTIFY"
+
+# If scope wasn't given on the command line, ask. Fall back to the --user
+# default when there's no terminal to prompt at (e.g. piped/CI installs).
+if [ "$SCOPE_SET" -eq 0 ]; then
+  if [ -t 0 ] && [ -t 1 ]; then
+    echo "Where should claude-notifier be installed?"
+    echo "  1) User    ~/.claude/settings.json        (all your projects)"
+    echo "  2) Project $(pwd)/.claude/settings.json   (this directory only)"
+    while true; do
+      printf 'Choose [1/2] (default 1): '
+      read -r reply || reply=""
+      case "$reply" in
+        ""|1|u|user|User)       SCOPE="user"; break ;;
+        2|p|project|Project)    SCOPE="project"; break ;;
+        *) echo "Please answer 1 (user) or 2 (project)." ;;
+      esac
+    done
+  else
+    echo "No scope specified and no terminal to prompt; defaulting to --user." >&2
+  fi
+fi
 
 if [ "$SCOPE" = "project" ]; then
   SETTINGS_DIR="$(pwd)/.claude"
